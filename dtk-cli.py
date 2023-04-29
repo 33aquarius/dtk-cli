@@ -2,7 +2,7 @@
 ### dtk-cli.py -- DEVELOPER TOOLKIT COMMAND LINE INTERFACE OBJECT ###
 #####################################################################
 __author__="Eamon Smith (github.com/34m0n-dev)"
-__version__='1.0'
+__version__='1'
 __created__='4/3/2023, Monday'
 
 ##############
@@ -31,6 +31,7 @@ import seaborn as sns
 import json
 import csv
 import string
+from textwrap import wrap
 
 ############
 ### MISC ###
@@ -53,7 +54,7 @@ def main(author=__author__, version=__version__, created=__created__):
         parser=argparse.ArgumentParser()
         parser.add_argument('-fp','--file-path',dest='filepath',metavar='file path',help='Direct path input to access desired dev-toolkit function.', required=False, default=os.getcwd())
         parser.add_argument('-hp','--home-path',dest='homepath',metavar='home path',help='Sets the home path for the command line interface. Default == the directory containing the dtk-cli.py file.', required=False, default=os.getcwd())
-        parser.add_argument('-wl','--width-limit', dest='width_limit',metavar='number',help='Sets the character limit per line in the command line interface. This must be an integer! Default == 69.',required=False,default=69)
+        parser.add_argument('-wl','--width-limit', dest='width_limit',metavar='number',help='Sets the character limit per line in the command line interface. This must be an integer! Default == 133.',required=False,default=133)
         parser.add_argument('-lc','--height-limit', dest='height_limit',metavar='number',help='Sets the maximum number of lines that can be taken up by the contents of a file being previewed. This must be an integer! Default == 24.',required=False,default=69)
         parser.add_argument('-sm','--start-mode',dest='startmode',metavar='str',help='Specifies the CLI mode upon launch. Default: home',required=False,default='home')
         parser.add_argument('-MO','--manual-override-pwd',dest='manual_override_pwd',help='Dev argument to access more functionality. This method means nothing without inputting the correct password, which == cross-referenced with a pre-generated hash output.', required=False, default=None)
@@ -69,6 +70,23 @@ def main(author=__author__, version=__version__, created=__created__):
         ######################
         ### CLI OPERATIONS ###
         ######################
+        def __obtain_fmt_datetime_as_str(self,unix_time_or_now='now'):
+            return_datetime_str=''
+            if 'current_settings' in dir(self):
+                strftime_fmt = self.current_settings['StatusBarDateTimeFormat']
+            else:
+                strftime_fmt = '%Y-%m-%d %H:%M:%S'
+            if unix_time_or_now=='now':
+                return_datetime_str=datetime.utcfromtimestamp(time.time()).strftime(strftime_fmt)
+            elif (isinstance(unix_time_or_now), int) or (isinstance(unix_time_or_now, float)):
+                return_datetime_str=datetime.utcfromtimestamp(unix_time_or_now).strftime(strftime_fmt)
+            else:
+                bad_ftm_for_time_input_error_str="""
+                ERROR! DATETIME CANNOT BE DISPLAYED PROPERLY. PLEASE REFERENCE DTK_CLI.__obtain_fmt_datetime_as_str() FOR DETAILS.
+                """
+                print(bad_ftm_for_time_input_error_str)
+                return_datetime_str='DATETIME ERROR'
+            return return_datetime_str
         def __check_manual_override_credentials(self,manual_override_pwd):
                 if manual_override_pwd==None:
                     correct_pwd_entered = False
@@ -117,7 +135,7 @@ def main(author=__author__, version=__version__, created=__created__):
             if len(self.CLI['forward_cache']) > cache_size_limit:
                 while len(self.CLI['forward_cache']) > cache_size_limit:
                     self.CLI['forward_cache']=self.CLI['forward_cache'][:-1]
-        def __open_url_on_client_browser(url_str, new=0, autoraise=True, **kwargs):
+        def __open_url_on_client_browser(self,url_str, new=0, autoraise=True, **kwargs):
             webbrowser.open(url_str, new=new, autoraise=True, **kwargs)
         def __enumerated_key_dict(self,dict_to_enumerate):
             final_dict={}
@@ -134,20 +152,14 @@ def main(author=__author__, version=__version__, created=__created__):
                     final_dict_component_dict['value']=name_key_values
                 final_dict[str(enum_key)]=final_dict_component_dict
             return final_dict
-        def __width_limit_fmt(self,print_str):
-            fmt_str_output, str_iter, new_line_chars='', print_str, ['\n',r'\n']
-            no_hyphen_chars_list=[' ', '', '.', ',','!','?','<','>',';',':',"'",'"','\n',r'\n','[',']','{','}','+','=','-','_',')','(','*','^','&','%','$','#','@','1','2','3','4','5','6','7','8','9','0','``'] # if either of the last char of the current line or the first char of the next line == in this list, then a hyphen will not be added between them.
-            punctuation_list=['.', ',','!','?','<','>',';',':',"'",'"',')','(','[',']','{','}','%']
-            while len(str_iter) > len(''):
-                current_line, next_char=str_iter[0:(width_limit-1)], str_iter[width_limit]
-                str_iter=str_iter[self.width_limit:]
-                if current_line[-1] not in no_hyphen_chars_list and next_char not in no_hyphen_chars_list:
-                    current_line+='-'
-                elif next_char in punctuation_list:
-                    current_line+=next_char
-                    str_iter=str_iter[1:]
-                fmt_str_output+=(current_line + '\n')
+        def __wrap_output_str_to_CLI_window(self,print_str):
+            output_str_list=wrap(print_str,width=self.width_limit,tabsize=floor(self.width_limit/self.current_settings['TabSizeDivisor']),fix_sentence_endings=self.current_settings['FixSentenceEndings'])
+            fmt_str_output=''
+            for str_iter in output_str_list:
+                fmt_str_output+=str_iter+'\n'
+            fmt_str_output = fmt_str_output.replace('\n ','\n') # LINE TRANSITION EXCEPTION HANDLING 2: removing unnecessary spacing at the beginning of lines due to punctuation
             return fmt_str_output
+
         def __user_input_cmd_compiler(self, str_to_format):
             original_str=str_to_format
             self.__get_all_valid_commands_for_current_windows()
@@ -234,28 +246,15 @@ def main(author=__author__, version=__version__, created=__created__):
         ### CLI TEXT OUTPUT & CMD LOGIC ###
         ###################################
         def __status_bar_display(self):
-            output_text_str="""\n{}\n CURRENT TIME: {} | CURRENT PATH: {}\n{}\nEXIT--> X
-                               SCREEN TOGGLES: << home--> [H] HELP--> [?] SETTINGS--> [S] >>
-                            PATH OPEN--> O --p [<] BACK|FORWARD [>] BOOKMARKS BAR--> [B] OPEN BOOKMARK --> [] \n
-
-                               CURRENT PATH: {}\n{}\n
-                            """.format(self.dividers['DividerLarge']['unit']['proportioned'],datetime.now.strftime(self.current_settings['StatusBarDateTimeFormat']),('EXEC--> [E]' if self.CLI['manual_override_mode'] else ''),self.CLI['cwd'],self.dividers['DividerLarge']['unit']['proportioned'])
-            return self.__width_limit_fmt(output_text_str)
-        def __ReturnTohomePage_display(self):
-            output_text_str="""
-            {} \nDEVELOPER TOOLKIT COMMAND LINE INTERFACE VER. {}\n  {}\n   CREATED BY {} ON {} \n  {}\n{}
-            """.format(self.dividers['DividerLarge']['unit']['proportioned'],
-                       self.dividers['DividerMedium']['unit']['proportioned'],
-                       self.about['Version'],
-                       self.about['Author'],
-                       self.about['Created'],
-                       self.dividers['DividerMedium']['unit']['proportioned'],
-                       self.dividers['DividerLarge']['unit']['proportioned'])
-            return self.__width_limit_fmt(output_text_str)
+            output_text_str="{}\n\nHELP--> [?] EXIT--> [X] PATH OPEN--> [O --p] [<] BACK|FORWARD [>] \nHOME--> [H] SETTINGS--> [S --t --v] BOOKMARKS--> [B --<o or s> --i]\n\n".format(self.dividers['DividerLarge']['proportioned'],('EXEC--> [E]' if self.manual_override_mode else ''),self.CLI['cwd'],self.dividers['DividerLarge']['proportioned'])
+            return output_text_str
+        def __HomePage_display(self):
+            output_text_str="{}\n\n\n{}\nDEVELOPER TOOLKIT COMMAND LINE INTERFACE VER. {}\n                    ----------\nCREATED BY {}ON {}\n{}\n\n\n{}\n{}".format(self.dividers['DividerLarge']['proportioned'],self.dividers['DividerLarge']['proportioned'],self.about['Version'],self.about['Author'],self.about['Created'],self.dividers['DividerLarge']['proportioned'],self.dividers['DividerLarge']['proportioned'],self.dividers['DividerLarge']['proportioned'])
+            return output_text_str
         def __HelpMenu_display(self):
             top_help_str_to_display="""
             {} DEVELOPER TOOLKIT COMMAND LINE INTERFACE\n{} HELP SCREEN (PRESS ANY KEY TO EXIT)\n{}
-            """.format(self.dividers['DividerLarge']['unit'], self.dividers['DividerMedium']['unit'],self.dividers['DividerSmall']['unit'])
+            """.format(self.dividers['DividerLarge']['proportioned'], self.dividers['DividerMedium']['proportioned'],self.dividers['DividerSmall']['proportioned'])
             global_commands_help_text='GLOBAL COMMANDS:\n---------------\n'
             global_commands=self.cmd_metadata['global_commands']
             path_commands=self.cmd_metadata['path_commands']
@@ -276,7 +275,7 @@ def main(author=__author__, version=__version__, created=__created__):
                 text_temp+=possible_calls_str
                 global_commands_help_text+=text_temp
             output_text_str=top_help_str_to_display + global_commands_help_text
-            return self.__width_limit_fmt(print_str=output_text_str)
+            return self.__wrap_output_str_to_CLI_window(print_str=output_text_str)
         def __SettingsMenu_display(self):
             top_display="\n{} DEVELOPER TOOLKIT COMMAND LINE INTERFACE\n{} SETTINGS\n{}(INPUT TO EXIT BACK TO home--> S)".format((self.current_settings['DividerLarge'] * ceil((self.current_settings['WidthLimit'] / 3))), (self.current_settings['DividerMedium'] * ceil((self.current_settings['WidthLimit'] / 5))), (self.current_settings['DividerSmall'] * ceil((self.current_settings['WidthLimit'] / 7))))
             default_settings_str,current_settings_str='',''
@@ -287,22 +286,22 @@ def main(author=__author__, version=__version__, created=__created__):
                 iname,ivalue=dsi,self.current_settings[csi]
                 current_settings_str+='  ->' + iname + ': ' + value + '\n'
             output_text_str=top_display + "DEFAULT SETTINGS:\n{}\nCURRENT SETTINGS:\n{}".format(default_settings_str,current_settings_str)
-            return_str=self.__width_limit_fmt(output_text_str)
+            return_str=self.__wrap_output_str_to_CLI_window(output_text_str)
             return return_str
         def __BookmarksBar_display(self):
-            output_text_str="\n{} DEVELOPER TOOLKIT COMMAND LINE INTERFACE\n{}\nBOOKMARKS\n{}\n".format(self.dividers['DividerLarge']['unit'], self.dividers['DividerMedium']['unit'],self.dividers['DividerSmall']['unit'])
+            output_text_str="\n{} DEVELOPER TOOLKIT COMMAND LINE INTERFACE\n{}\nBOOKMARKS\n{}\n".format(self.dividers['DividerLarge']['proportioned'], self.dividers['DividerMedium']['proportioned'],self.dividers['DividerSmall']['proportioned'])
             for bki in self.bookmarks:
                 output_text_str+="  ->{} | {}\n".format(bki,self.bookmarks[bki]['name'])
-            return self.__width_limit_fmt(print_str=output_text_str)
+            return self.__wrap_output_str_to_CLI_window(print_str=output_text_str)
         def __PrintContents_display(self):
-            top_str="\n{}\nDEVELOPER TOOLKIT:\n{}\nCONTENTS DISPLAY FOR FILE OR FOLDER\n{}\n".format(self.dividers['DividerLarge']['unit'],self.dividers['DividerMedium']['unit'],self.dividers['DividerSmall']['unit'])
+            top_str="\n{}\nDEVELOPER TOOLKIT:\n{}\nCONTENTS DISPLAY FOR FILE OR FOLDER\n{}\n".format(self.dividers['DividerLarge']['proportioned'],self.dividers['DividerMedium']['proportioned'],self.dividers['DividerSmall']['proportioned'])
             cwd_contents="CONTENTS:\n" + Path(self.CLI['cwd']).read_text().split('\n')
             cwd_contents_str=''
             for conti in cwd_contents:
                 cwd_contents_str+=conti + '\n'
-            return self.__width_limit_fmt(print_str=top_str + cwd_contents_str)
+            return self.__wrap_output_str_to_CLI_window(print_str=top_str + cwd_contents_str)
         def __PrintPreview_display(self):
-            top_str="\n{}\nDEVELOPER TOOLKIT:\n{}\nPREVIEW DISPLAY FOR FILE OR FOLDER\n{}\n".format(self.dividers['DividerLarge']['unit'],self.dividers['DividerMedium']['unit'],self.dividers['DividerSmall']['unit'])
+            top_str="\n{}\nDEVELOPER TOOLKIT:\n{}\nPREVIEW DISPLAY FOR FILE OR FOLDER\n{}\n".format(self.dividers['DividerLarge']['proportioned'],self.dividers['DividerMedium']['proportioned'],self.dividers['DividerSmall']['proportioned'])
             if os.path.isfile(self.CLI['cwd']):
                 cwd_contents=Path(self.CLI['cwd']).read_text().split('\n')[0:self.current_settings['HeightLimit']]
             else:
@@ -322,15 +321,15 @@ def main(author=__author__, version=__version__, created=__created__):
             cwd_contents_str=''
             for conti in cwd_contents:
                 cwd_contents_str+=conti + '\n'
-            return self.__width_limit_fmt(top_str + cwd_contents_str)
+            return self.__wrap_output_str_to_CLI_window(top_str + cwd_contents_str)
         def __execStringInput_display(self):
             if self.CLI['manual_override_mode'] and (self.CLI['mode'] == 'exec_str'):
-                exec_display_str="\n{} DEVELOPER TOOLKIT COMMAND LINE INTERFACE\n{} MANUAL OVERRIDE MODE exec() CALL\n{}\nNOW RUNNING: \n exec(\n".format(self.dividers['DividerLarge']['unit'],self.dividers['DividerMedium']['unit'],self.dividers['DividerSmall']['unit'])
+                exec_display_str="\n{} DEVELOPER TOOLKIT COMMAND LINE INTERFACE\n{} MANUAL OVERRIDE MODE exec() CALL\n{}\nNOW RUNNING: \n exec(\n".format(self.dividers['DividerLarge']['proportioned'],self.dividers['DividerMedium']['proportioned'],self.dividers['DividerSmall']['proportioned'])
                 exec_display_str+=self.CLI['exec_str'] + ')\n'
-                return self.__width_limit_fmt(exec_display_str)
+                return self.__wrap_output_str_to_CLI_window(exec_display_str)
             else:
                 no_MO_error_str='Error! Function DTK_CLI.__execStringInput_display() cannot activate without DTK_CLI.CLI["manual_override_mode"] being True.'
-                return self.__width_limit_fmt(no_MO_error_str)
+                return self.__wrap_output_str_to_CLI_window(no_MO_error_str)
         def __TeleportToSpecifiedPath(self,to_path,print_preview_not_contents=True):
             self.CLI['back_cache']=[self.CLI['cwd'],self.CLI['mode']] + self.CLI['back_cache'][:-1]
             self.CLI['forward_cache']=[]
@@ -381,7 +380,7 @@ def main(author=__author__, version=__version__, created=__created__):
             else:
                 no_printable_contents_error_str="Error! The current CLI windows path == not available for viewing, only previewing. Likely this == due to the windows path being set to a folder and not a file."
                 print(no_printable_contents_error_str)
-        def __ReturnTohomePage(self):
+        def __ReturnToHomePage(self):
             self.CLI['back_cache']=[[self.CLI['cwd'],self.CLI['mode']]]+self.CLI['back_cache'][1:]
             self.CLI['forward_cache']=[]
             self.CLI['mode']='home'
@@ -453,7 +452,7 @@ def main(author=__author__, version=__version__, created=__created__):
             with open(self.session_log_path,"w") as sessiontxt:
                 sessiontxt.write(combined_str)
         def __ExitCLI(self):
-            self.session_log['timestamps'][1]=str(time.time())
+            self.session_log['timestamps'][1]=self.__obtain_fmt_datetime_as_str()
             self.session_log_path=self.src_dir_path  + 'session_from_{}_to_{}.txt'.format(self.session_log['timestamps'][0],self.session_log['timestamps'][1])
             self.__update_usage_data_for_bookmarks_dicts()
             self.__save_new_metadata_to_files()
@@ -466,30 +465,25 @@ def main(author=__author__, version=__version__, created=__created__):
                 self.__update_txt_session_log(status_bar_str)
                 print(status_bar_str)
             else:
-                divider_line=self.dividers['DividerSmall']['unit'] + '\n' + self.dividers['DividerMedium']['unit'] + '\n' + self.dividers['DividerLarge']['unit']
+                divider_line=self.dividers['DividerLarge']['proportioned'] + '\n' + self.dividers['DividerMedium']['proportioned'] + 'DTK-CLI' + self.dividers['DividerMedium']['proportioned'] + '\n'+ self.dividers['DividerLarge']['proportioned']
                 self.__update_txt_session_log(divider_line)
                 print(divider_line)
-            if self.current_settings['PrintInterfaceMetadata']:
-                interface_metadata_str="\n{}\nCLI_cwd: {}\nCLI_mode: {}\nuser_input: {}\n{}\n".format(self.dividers['DividerMedium']['unit'],self.CLI['cwd'], self.CLI['mode'], self.user_input_dict,self.dividers['DividerMedium']['unit'])
-                interface_metadata_str=self.__width_limit_fmt(interface_metadata_str)
-                self.__update_txt_session_log(interface_metadata_str)
-                print(interface_metadata_str)
             # MID
             if self.CLI['mode'] == 'home':
-                save_and_print_me=self.__home_page()
-            elif self.CLI['mode'] == 'Help':
-                save_and_print_me=self.__help_display()
-            elif self.CLI['mode'] == 'Settings':
-                save_and_print_me=self.__settings_display()
-            elif self.CLI['mode'] == 'Bookmarks':
-                save_and_print_me=self.__bookmarks_bar_display()
+                save_and_print_me=self.__HomePage_display()
+            elif self.CLI['mode'] == 'help':
+                save_and_print_me=self.__HelpMenu_display()
+            elif self.CLI['mode'] == 'settings':
+                save_and_print_me=self.__SettingsMenu_display()
+            elif self.CLI['mode'] == 'bookmarks':
+                save_and_print_me=self.__BookmarksBar_display()
             elif self.CLI['mode'] == 'execFileContents':
-                save_and_print_me=self.__file_exec_str_display()
+                save_and_print_me=self.__execStringInput_display()
             elif os.path.exists(self.CLI['cwd']):
                 if self.CLI['mode']=='PrintPreview':
-                    self.__print_preview_display()
+                    self.__PrintPreview_display()
                 elif self.CLI['mode']=='PrintContents' and (not os.path.isfile(self.CLI['cwd'])):
-                    self.__print_contents_display()
+                    self.__PrintContents_display()
             else:
                 save_and_print_me="ERROR! DTK_CLI.CLI_cwd does not point to a valid page for the command line interface to display. In the worst case, please restart the program."
             self.__update_txt_session_log(save_and_print_me)
@@ -500,7 +494,7 @@ def main(author=__author__, version=__version__, created=__created__):
                 self.__update_txt_session_log(status_bar_str)
                 print(status_bar_str)
             else:
-                divider_line=self.dividers['DividerSmall']['unit'] + '\n' + self.dividers['DividerMedium']['unit'] + '\n' + self.dividers['DividerLarge']['unit']
+                divider_line=self.dividers['DividerLarge']['proportioned'] + '\n' + self.dividers['DividerMedium']['proportioned'] + 'DTK-CLI' + self.dividers['DividerMedium']['proportioned'] + '\n'+ self.dividers['DividerLarge']['proportioned']
                 self.__update_txt_session_log(divider_line)
                 print(divider_line)
             # MISC
@@ -508,6 +502,11 @@ def main(author=__author__, version=__version__, created=__created__):
                 print_exec_str=self.CLI['exec_str']
                 self.CLI['exec_str']=''
                 exec(print_exec_str)
+            if self.current_settings['PrintInterfaceMetadata']:
+                interface_metadata_str="\nTIME || {}\nCWD || {}\nMODE || {}\n".format(self.__obtain_fmt_datetime_as_str(),self.CLI['cwd'], self.CLI['mode'])
+                interface_metadata_str=self.__wrap_output_str_to_CLI_window(interface_metadata_str)
+                self.__update_txt_session_log(interface_metadata_str)
+                print(interface_metadata_str)
         def __CLI_cmd(self,input_cmd_str):
             self.user_input_dict=self.__user_input_cmd_compiler(input_cmd_str)
             if self.user_input_dict['parameters'] != {}:
@@ -584,6 +583,8 @@ def main(author=__author__, version=__version__, created=__created__):
                                       'DesktopPathString':(os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')),
                                       'WidthLimit':width_limit,
                                       'HeightLimit':height_limit,
+                                      'FixSentenceEndings':True,
+                                      'TabSizeDivisor':10,
                                       'DividerLarge':'X',
                                       'DividerLarge_proportion':1,
                                       'DividerMedium':'~',
@@ -652,9 +653,9 @@ def main(author=__author__, version=__version__, created=__created__):
                                                 'CLI_syntax':'X',
                                                 'allowed_variations':['ExitCLI','x','X','exit()','exit','EXIT','esc','ESC','/exit','/EXIT','/X','/x','x()','X()'], # references allowed variations for input arguments to trigger this command
                                                 'details':None},
-                                     'ReturnTohomePage':{'description':'Return to the home view on the CLI',
+                                     'ReturnToHomePage':{'description':'Return to the home view on the CLI',
                                                          'CLI_syntax':'H',
-                                                         'allowed_variations':['ReturnTohomePage','h','H','home','home','/home','home()','/h','/H'],
+                                                         'allowed_variations':['ReturnToHomePage','h','H','home','home','/home','home()','/h','/H'],
                                                          'details':None},
                                      'ToggleHelpMenuDisplay':{'description':'Opens/closes up the help menu on the CLI.',
                                                            'CLI_syntax':'?',
@@ -725,16 +726,16 @@ def main(author=__author__, version=__version__, created=__created__):
 
             def __init_core():
                 self.POWER=True
-                self.session_log={'timestamps':[str(time.time()), None],'saved_str_blocks':[]}
                 self.about={'Author':author,'Version':version,'Created':created}
                 self.width_limit=width_limit
                 self.height_limit=height_limit
+                manual_override_mode=self.__check_manual_override_credentials(manual_override_pwd)
                 self.CLI={
                           'cwd':(self.current_settings['homePathString']) if (jump_to_path == None) else jump_to_path,
                           'mode':'home',
                           'back_cache':[], # !!! NOTE: 0 INDEX IS MOST RECENT FOR NAVIGATION CACHES !!!
                           'forward_cache':[], # !!! NOTE: 0 INDEX IS MOST RECENT FOR NAVIGATION CACHES !!!
-                          'manual_override_mode':self.__check_manual_override_credentials(manual_override_pwd),
+                          'manual_override_mode':manual_override_mode,
                           'exec_str':'',
                           'about':{'Author':author,'Version':version,'Created':created}
                          }
@@ -751,6 +752,7 @@ def main(author=__author__, version=__version__, created=__created__):
                 self.default_settings=__load_default_settings()
                 self.current_settings=__load_current_settings()
                 self.dividers=__load_dividers()
+                self.session_log={'timestamps':[self.__obtain_fmt_datetime_as_str(), None],'saved_str_blocks':[]}
                 while self.POWER:
                     os.chdir(self.CLI['cwd'])
                     self.__CLI_display()
